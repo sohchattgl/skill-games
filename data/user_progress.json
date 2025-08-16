@@ -1,0 +1,16 @@
+{
+  "Karmuhilan K J": {
+    "answered_correctly": [],
+    "current_difficulty": "easy",
+    "answered_questions": [],
+    "session_score": 0,
+    "session_correct_count": {
+      "easy": 0,
+      "medium": 0,
+      "hard": 0
+    },
+    "best_score": 0,
+    "session_start_time": "2025-08-16T12:32:39.688385",
+    "session_id": "c85181d0-8df9-4e0d-a6ae-2aa7e9ed62b1"
+  }
+}

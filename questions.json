@@ -1,0 +1,254 @@
+[
+  {
+    "id": 1,
+    "question": "Which of the following is a supervised learning algorithm?",
+    "options": ["K-Means", "Linear Regression", "DBSCAN", "PCA"],
+    "answer": "Linear Regression",
+    "difficulty": "easy"
+  },
+  {
+    "id": 2,
+    "question": "What type of supervised learning problem is email spam detection?",
+    "options": ["Regression", "Classification", "Clustering", "Dimensionality Reduction"],
+    "answer": "Classification",
+    "difficulty": "easy"
+  },
+  {
+    "id": 3,
+    "question": "In supervised learning, what do we call the input variables?",
+    "options": ["Labels", "Targets", "Features", "Outputs"],
+    "answer": "Features",
+    "difficulty": "easy"
+  },
+  {
+    "id": 4,
+    "question": "What is the main difference between classification and regression?",
+    "options": ["Classification predicts categories, regression predicts continuous values", "Classification is unsupervised, regression is supervised", "Classification uses neural networks, regression uses trees", "No difference"],
+    "answer": "Classification predicts categories, regression predicts continuous values",
+    "difficulty": "easy"
+  },
+  {
+    "id": 5,
+    "question": "Which algorithm is commonly used for binary classification?",
+    "options": ["Linear Regression", "Logistic Regression", "K-Means", "Apriori"],
+    "answer": "Logistic Regression",
+    "difficulty": "easy"
+  },
+  {
+    "id": 6,
+    "question": "What does overfitting mean in supervised learning?",
+    "options": ["Model performs well on training and test data", "Model memorizes training data but fails on new data", "Model is too simple", "Model has too few parameters"],
+    "answer": "Model memorizes training data but fails on new data",
+    "difficulty": "medium"
+  },
+  {
+    "id": 7,
+    "question": "Which technique is used to prevent overfitting?",
+    "options": ["Adding more features", "Increasing model complexity", "Cross-validation and regularization", "Using smaller datasets"],
+    "answer": "Cross-validation and regularization",
+    "difficulty": "medium"
+  },
+  {
+    "id": 8,
+    "question": "What is the purpose of a validation set in supervised learning?",
+    "options": ["To train the model", "To test final performance", "To tune hyperparameters and select models", "To store extra data"],
+    "answer": "To tune hyperparameters and select models",
+    "difficulty": "medium"
+  },
+  {
+    "id": 9,
+    "question": "In Random Forest, what does 'random' refer to?",
+    "options": ["Random data sampling", "Random feature selection at each split", "Both random data sampling and feature selection", "Random initialization of weights"],
+    "answer": "Both random data sampling and feature selection",
+    "difficulty": "medium"
+  },
+  {
+    "id": 10,
+    "question": "Which metric is NOT appropriate for imbalanced classification problems?",
+    "options": ["Precision", "Recall", "F1-Score", "Accuracy"],
+    "answer": "Accuracy",
+    "difficulty": "medium"
+  },
+  {
+    "id": 11,
+    "question": "What is the bias-variance tradeoff in supervised learning?",
+    "options": ["Balance between model complexity and interpretability", "Balance between underfitting and overfitting", "Balance between training time and accuracy", "Balance between precision and recall"],
+    "answer": "Balance between underfitting and overfitting",
+    "difficulty": "hard"
+  },
+  {
+    "id": 12,
+    "question": "In SVM, what does the kernel trick allow us to do?",
+    "options": ["Reduce training time", "Handle non-linear decision boundaries in high-dimensional space", "Automatically select features", "Handle missing data"],
+    "answer": "Handle non-linear decision boundaries in high-dimensional space",
+    "difficulty": "hard"
+  },
+  {
+    "id": 13,
+    "question": "What is gradient descent's role in supervised learning?",
+    "options": ["Feature selection", "Data preprocessing", "Optimization algorithm to minimize loss function", "Model evaluation"],
+    "answer": "Optimization algorithm to minimize loss function",
+    "difficulty": "hard"
+  },
+  {
+    "id": 14,
+    "question": "In ensemble methods, what does 'bagging' stand for?",
+    "options": ["Best Aggregating", "Bootstrap Aggregating", "Balanced Averaging", "Batch Aggregating"],
+    "answer": "Bootstrap Aggregating",
+    "difficulty": "hard"
+  },
+  {
+    "id": 15,
+    "question": "What is the key assumption of Naive Bayes classifier?",
+    "options": ["Features are normally distributed", "Features are independent given the class", "Data is linearly separable", "Equal class probabilities"],
+    "answer": "Features are independent given the class",
+    "difficulty": "hard"
+  },
+  {
+    "id": 16,
+    "question": "Which supervised learning algorithm is most interpretable?",
+    "options": ["Neural Networks", "Random Forest", "Decision Trees", "SVM with RBF kernel"],
+    "answer": "Decision Trees",
+    "difficulty": "easy"
+  },
+  {
+    "id": 17,
+    "question": "What is feature engineering in supervised learning?",
+    "options": ["Selecting the best algorithm", "Creating new features from existing data", "Tuning hyperparameters", "Evaluating model performance"],
+    "answer": "Creating new features from existing data",
+    "difficulty": "medium"
+  },
+  {
+    "id": 18,
+    "question": "In k-fold cross-validation, what does 'k' represent?",
+    "options": ["Number of features", "Number of classes", "Number of folds/subsets", "Number of iterations"],
+    "answer": "Number of folds/subsets",
+    "difficulty": "medium"
+  },
+  {
+    "id": 19,
+    "question": "What is the output of a logistic regression model?",
+    "options": ["Continuous values", "Probability values between 0 and 1", "Integer classifications", "Feature weights only"],
+    "answer": "Probability values between 0 and 1",
+    "difficulty": "easy"
+  },
+  {
+    "id": 20,
+    "question": "Which loss function is commonly used for regression problems?",
+    "options": ["Cross-entropy", "Hinge loss", "Mean Squared Error", "Log loss"],
+    "answer": "Mean Squared Error",
+    "difficulty": "easy"
+  },
+  {
+    "id": 21,
+    "question": "What is the purpose of regularization in supervised learning?",
+    "options": ["Increase model complexity", "Prevent overfitting by adding penalty terms", "Speed up training", "Increase accuracy on training data"],
+    "answer": "Prevent overfitting by adding penalty terms",
+    "difficulty": "medium"
+  },
+  {
+    "id": 22,
+    "question": "In decision trees, what is information gain used for?",
+    "options": ["Pruning trees", "Selecting the best feature to split on", "Calculating prediction confidence", "Handling missing values"],
+    "answer": "Selecting the best feature to split on",
+    "difficulty": "medium"
+  },
+  {
+    "id": 23,
+    "question": "What is the difference between L1 and L2 regularization?",
+    "options": ["L1 is for classification, L2 is for regression", "L1 promotes sparsity, L2 shrinks coefficients uniformly", "L1 is faster, L2 is more accurate", "No significant difference"],
+    "answer": "L1 promotes sparsity, L2 shrinks coefficients uniformly",
+    "difficulty": "medium"
+  },
+  {
+    "id": 24,
+    "question": "Which evaluation metric is most suitable for multi-class classification?",
+    "options": ["ROC-AUC", "Macro/Micro F1-Score", "R-squared", "Mean Absolute Error"],
+    "answer": "Macro/Micro F1-Score",
+    "difficulty": "medium"
+  },
+  {
+    "id": 25,
+    "question": "What is boosting in ensemble methods?",
+    "options": ["Training models in parallel", "Sequential training where each model corrects previous errors", "Random sampling of features", "Averaging multiple model predictions"],
+    "answer": "Sequential training where each model corrects previous errors",
+    "difficulty": "hard"
+  },
+  {
+    "id": 26,
+    "question": "In neural networks, what is backpropagation?",
+    "options": ["Forward pass through the network", "Algorithm for computing gradients and updating weights", "Method for selecting network architecture", "Technique for data preprocessing"],
+    "answer": "Algorithm for computing gradients and updating weights",
+    "difficulty": "hard"
+  },
+  {
+    "id": 27,
+    "question": "What is the curse of dimensionality in supervised learning?",
+    "options": ["Too many algorithms to choose from", "Performance degrades as feature dimensionality increases", "Difficulty in visualizing data", "Computational complexity increases"],
+    "answer": "Performance degrades as feature dimensionality increases",
+    "difficulty": "hard"
+  },
+  {
+    "id": 28,
+    "question": "Which technique helps handle class imbalance in classification?",
+    "options": ["Feature scaling", "SMOTE (Synthetic Minority Oversampling)", "Principal Component Analysis", "Cross-validation"],
+    "answer": "SMOTE (Synthetic Minority Oversampling)",
+    "difficulty": "hard"
+  },
+  {
+    "id": 29,
+    "question": "What is early stopping in model training?",
+    "options": ["Stopping when accuracy reaches 100%", "Stopping when validation performance stops improving", "Stopping after fixed number of epochs", "Stopping when training loss is zero"],
+    "answer": "Stopping when validation performance stops improving",
+    "difficulty": "medium"
+  },
+  {
+    "id": 30,
+    "question": "In supervised learning, what is a hyperparameter?",
+    "options": ["Parameters learned during training", "Configuration settings set before training", "Output predictions", "Input features"],
+    "answer": "Configuration settings set before training",
+    "difficulty": "easy"
+  },
+  {
+    "id": 31,
+    "question": "What does AUC-ROC measure in binary classification?",
+    "options": ["Accuracy of predictions", "Area under the Receiver Operating Characteristic curve", "Average processing time", "Number of correct classifications"],
+    "answer": "Area under the Receiver Operating Characteristic curve",
+    "difficulty": "medium"
+  },
+  {
+    "id": 32,
+    "question": "Which algorithm is most suitable for high-dimensional sparse data?",
+    "options": ["K-Nearest Neighbors", "Naive Bayes", "Decision Trees", "Linear SVM"],
+    "answer": "Linear SVM",
+    "difficulty": "hard"
+  },
+  {
+    "id": 33,
+    "question": "What is feature selection in supervised learning?",
+    "options": ["Creating new features", "Choosing the most relevant features for the model", "Scaling feature values", "Removing outliers"],
+    "answer": "Choosing the most relevant features for the model",
+    "difficulty": "easy"
+  },
+  {
+    "id": 34,
+    "question": "In ensemble methods, what is the main advantage of combining multiple models?",
+    "options": ["Faster training", "Reduced variance and better generalization", "Less memory usage", "Simpler interpretation"],
+    "answer": "Reduced variance and better generalization",
+    "difficulty": "medium"
+  },
+  {
+    "id": 35,
+    "question": "What is the vanishing gradient problem in deep neural networks?",
+    "options": ["Gradients become too large", "Gradients become very small in early layers", "Network becomes too wide", "Learning rate is too high"],
+    "answer": "Gradients become very small in early layers",
+    "difficulty": "hard"
+  },
+  {
+    "id": 36,
+    "question": "Which activation function is commonly used in hidden layers of neural networks?",
+    "options": ["Sigmoid", "Linear", "ReLU", "Step function"],
+    "answer": "ReLU",
+    "difficulty": "medium"
+  }
+]
