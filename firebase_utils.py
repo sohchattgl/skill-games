@@ -104,3 +104,12 @@ def get_leaderboard(limit: int = 10, db=None):
             "best_score": data.get("best_score", 0)
         })
     return out
+
+def save_feedback(feedback_data):
+    """Save user feedback to Firebase"""
+    try:
+        db = firestore.client()
+        db.collection('feedback').add(feedback_data)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

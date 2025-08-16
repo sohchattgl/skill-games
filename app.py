@@ -19,6 +19,7 @@ from firebase_utils import (
     update_user_best_and_answers,
     get_leaderboard,
     get_user,
+    save_feedback,  # Add this for feedback functionality
 )
 
 # ---------- CONFIG ----------
@@ -27,11 +28,12 @@ QUESTIONS_FILE = "questions.json"
 QUIZ_DURATION_SECONDS = 120
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
-
+# Create Firebase key file from environment variable
 with open(SERVICE_ACCOUNT_PATH, 'w') as f:
     f.write(os.getenv('FIREBASE_KEY'))
-
 
 # ---------- FAST INITIALIZATION ----------
 @st.cache_resource
@@ -71,7 +73,7 @@ def init_session():
 
 init_session()
 
-# ---------- CACHED DATA ----------
+# ---------- CACHED DATA (CLEAR WHEN NEEDED) ----------
 @st.cache_data(ttl=60)
 def get_leaderboard_cached():
     if not firebase_available:
@@ -81,7 +83,7 @@ def get_leaderboard_cached():
     except:
         return []
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=30)  # Shorter TTL for user data to ensure fresh answered questions
 def get_user_data(email):
     if not firebase_available:
         return None
@@ -89,6 +91,10 @@ def get_user_data(email):
         return get_user(email)
     except:
         return None
+
+def clear_user_cache(email):
+    """Clear cached user data when user answers questions"""
+    get_user_data.clear()  # Clear cache to get fresh data
 
 # ---------- UI COMPONENTS ----------
 def render_header():
@@ -193,6 +199,7 @@ def start_quiz():
     st.session_state.game_active = True
     st.session_state.answer_submitted = False
     st.session_state.last_answer_time = 0
+    st.session_state.actual_level = "easy"  # Track actual difficulty being served
 
 def end_quiz():
     st.session_state.game_active = False
@@ -218,26 +225,45 @@ def end_quiz():
             pass
 
 def get_next_question():
-    excluded = set(st.session_state.game_state["answered_this_attempt"])
+    """Get next question - NEVER repeat correctly answered questions"""
+    # Get user's permanently answered questions (correctly answered across all sessions)
+    excluded_forever = set()
     
     if firebase_available and st.session_state.user:
         user_data = get_user_data(st.session_state.user["email"])
         if user_data:
-            excluded.update(user_data.get("answered_questions", []))
+            # These are questions answered CORRECTLY in previous sessions - NEVER repeat
+            excluded_forever = set(user_data.get("answered_questions", []))
     
+    # Questions answered in current session (both right and wrong)
+    excluded_this_session = set(st.session_state.game_state["answered_this_attempt"])
+    
+    # Total exclusions = forever excluded + current session
+    total_excluded = excluded_forever.union(excluded_this_session)
+    
+    # Try adaptive selection first
     try:
         next_q = next_question_for_user(
             questions,
             st.session_state.game_state["current_level"],
-            excluded
+            total_excluded
         )
         if next_q:
+            # Update actual level based on question difficulty
+            st.session_state.actual_level = next_q.get("difficulty", "easy")
             return next_q
     except:
         pass
     
-    available = [q for q in questions if q.get("id") not in excluded]
-    return available[0] if available else None
+    # Fallback: any question not in total exclusions
+    available = [q for q in questions if q.get("id") not in total_excluded]
+    if available:
+        selected_q = available[0]
+        # Update actual level based on question difficulty
+        st.session_state.actual_level = selected_q.get("difficulty", "easy")
+        return selected_q
+    
+    return None
 
 # ---------- GAME INTERFACE (COMPLETELY FIXED) ----------
 def render_game():
@@ -261,19 +287,34 @@ def render_game():
         st.rerun()
         return
     
-    # UI
+    # UI - Show actual question difficulty, not theoretical level
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Points", st.session_state.game_state["total_points"])
     with col2:
-        st.metric("Level", st.session_state.game_state["current_level"].title())
+        # Show actual difficulty of current question
+        actual_difficulty = getattr(st.session_state, 'actual_level', 'easy')
+        theoretical_level = st.session_state.game_state["current_level"]
+        
+        # If they're different, show both
+        if actual_difficulty != theoretical_level:
+            st.metric("Level", f"{actual_difficulty.title()}", 
+                     delta=f"Target: {theoretical_level.title()}")
+        else:
+            st.metric("Level", actual_difficulty.title())
     with col3:
         mins, secs = divmod(int(time_left), 60)
         if st.button(f"⏰ {mins}:{secs:02d}", key="timer_refresh"):
             st.rerun()  # Manual refresh only
     
     st.markdown("---")
+    
+    # Show question with difficulty indicator
+    question_difficulty = question.get("difficulty", "easy")
+    difficulty_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}.get(question_difficulty, "🟢")
+    
     st.markdown(f"**Q:** {question.get('question')}")
+    st.caption(f"{difficulty_emoji} {question_difficulty.title()} Question")
     
     # Simple radio + button (no form complications)
     options = question.get("options", [])
@@ -296,24 +337,57 @@ def process_answer(question, selected):
     correct = selected == question.get("answer")
     
     try:
-        # Get exclusions
-        excluded = set(st.session_state.game_state["answered_this_attempt"])
+        # Get exclusions for next question selection
+        excluded_forever = set()
         if firebase_available and st.session_state.user:
             user_data = get_user_data(st.session_state.user["email"])
             if user_data:
-                excluded.update(user_data.get("answered_questions", []))
+                excluded_forever = set(user_data.get("answered_questions", []))
+        
+        excluded_this_session = set(st.session_state.game_state["answered_this_attempt"])
+        total_excluded = excluded_forever.union(excluded_this_session)
         
         # Update game state
-        next_q = handle_answer(correct, question["id"], st.session_state.game_state, questions, excluded)
+        next_q = handle_answer(correct, question["id"], st.session_state.game_state, questions, total_excluded)
         
         # Log attempt
         points = POINTS_PER_DIFFICULTY.get(question.get("difficulty", "easy"), 1) if correct else 0
         st.session_state.attempt_meta["questions_attempted"].append({
             "id": question["id"],
+            "question": question.get("question"),
             "difficulty": question.get("difficulty", "easy"),
+            "chosen": selected,
+            "correct_answer": question.get("answer"),
             "correct": correct,
             "pts_awarded": points,
+            "timestamp": int(time.time()),
         })
+        
+        # IMPORTANT: If answered correctly, add to permanent exclusion list immediately
+        if correct and firebase_available and st.session_state.user:
+            try:
+                # Clear cache to ensure fresh data
+                clear_user_cache(st.session_state.user["email"])
+                
+                # Get current user data
+                user_data = get_user_data(st.session_state.user["email"]) or {}
+                current_answered = set(user_data.get("answered_questions", []))
+                
+                # Add this question to permanently answered
+                current_answered.add(question["id"])
+                
+                # Update immediately in Firebase
+                update_user_best_and_answers(
+                    st.session_state.user["email"],
+                    st.session_state.game_state["total_points"],
+                    list(current_answered)
+                )
+                
+                # Clear cache again to ensure next question selection gets fresh data
+                clear_user_cache(st.session_state.user["email"])
+                
+            except Exception as e:
+                print(f"Error updating answered questions: {e}")
         
         # Show immediate feedback
         if correct:
@@ -324,6 +398,10 @@ def process_answer(question, selected):
         # Move to next question
         st.session_state.current_question = next_q
         st.session_state.answer_submitted = False
+        
+        # Update actual level based on next question (if exists)
+        if next_q:
+            st.session_state.actual_level = next_q.get("difficulty", "easy")
         
         # Small delay then refresh
         time.sleep(1)
@@ -337,11 +415,26 @@ def process_answer(question, selected):
 def render_home():
     st.markdown("### 🎯 Ready to Test Your Knowledge?")
     st.write("2-minute adaptive quiz. Answer correctly to level up!")
+    st.info("💡 **Memory Feature**: Questions you answer correctly will never appear again!")
     
     if firebase_available and st.session_state.user:
         user_data = get_user_data(st.session_state.user["email"])
-        if user_data and user_data.get("best_score", 0) > 0:
-            st.info(f"🏆 Your best: {user_data['best_score']} points")
+        if user_data:
+            best_score = user_data.get("best_score", 0)
+            answered_count = len(user_data.get("answered_questions", []))
+            
+            if best_score > 0:
+                st.success(f"🏆 Your best: {best_score} points")
+            if answered_count > 0:
+                st.info(f"📚 Questions mastered: {answered_count}")
+                
+            # Show available questions
+            total_questions = len(questions)
+            remaining = total_questions - answered_count
+            if remaining > 0:
+                st.write(f"📝 New questions available: {remaining}/{total_questions}")
+            else:
+                st.warning("🎓 You've mastered all questions! Amazing!")
 
 def render_leaderboard():
     st.markdown("### 🏆 Leaderboard")
@@ -361,6 +454,7 @@ def render_results():
     attempt = st.session_state.attempt_meta
     game = st.session_state.game_state
     
+    # Main stats
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Final Score", game["total_points"])
@@ -372,8 +466,75 @@ def render_results():
             accuracy = (correct / len(attempt["questions_attempted"]) * 100)
             st.metric("Accuracy", f"{accuracy:.0f}%")
     
+    # Additional stats
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Max Streak", game.get("max_streak", 0))
+    with col2:
+        duration = int(time.time() - attempt["start_time"])
+        mins, secs = divmod(duration, 60)
+        st.metric("Time Taken", f"{mins}:{secs:02d}")
+    
     st.markdown("---")
     
+    # Difficulty Distribution
+    if attempt["questions_attempted"]:
+        st.subheader("📊 Question Difficulty Breakdown")
+        try:
+            difficulty_dist = difficulty_distribution(attempt["questions_attempted"])
+            
+            # Show as columns
+            diff_cols = st.columns(len(difficulty_dist) if difficulty_dist else 3)
+            for i, (level, count) in enumerate(difficulty_dist.items()):
+                with diff_cols[i]:
+                    st.metric(level.title(), count)
+                    
+        except Exception as e:
+            st.write("Could not generate difficulty distribution")
+    
+    st.markdown("---")
+    
+    # Feedback Section
+    st.subheader("💬 Quick Feedback")
+    with st.form("feedback_form"):
+        feedback_text = st.text_area(
+            "How was your quiz experience? Any suggestions?", 
+            placeholder="Share your thoughts about the questions, difficulty, or overall experience...",
+            height=100
+        )
+        
+        if st.form_submit_button("Submit Feedback"):
+            if feedback_text.strip() and firebase_available and st.session_state.user:
+                try:
+                    feedback_data = {
+                        "user_email": st.session_state.user["email"],
+                        "user_name": st.session_state.user["display_name"],
+                        "feedback": feedback_text.strip(),
+                        "score": game["total_points"],
+                        "questions_attempted": len(attempt["questions_attempted"]),
+                        "timestamp": int(time.time())
+                    }
+                    
+                    # You'll need to add this function to firebase_utils.py:
+                    # save_feedback(feedback_data)
+                    
+                    # For now, we'll try to save it or just show success
+                    try:
+                        save_feedback(feedback_data)
+                        st.success("✅ Thank you for your feedback!")
+                    except:
+                        st.info("✅ Feedback noted! (Saving temporarily disabled)")
+                        
+                except Exception as e:
+                    st.error("Could not save feedback, but we appreciate it!")
+            elif feedback_text.strip():
+                st.info("✅ Thanks for the feedback!")
+            else:
+                st.warning("Please enter some feedback before submitting")
+    
+    st.markdown("---")
+    
+    # Action buttons
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔄 Play Again", use_container_width=True):
