@@ -26,6 +26,13 @@ SERVICE_ACCOUNT_PATH = "serviceAccountKey.json"
 QUESTIONS_FILE = "questions.json"
 QUIZ_DURATION_SECONDS = 120
 
+import os
+
+
+with open(SERVICE_ACCOUNT_PATH, 'w') as f:
+    f.write(os.getenv('FIREBASE_KEY'))
+
+
 # ---------- FAST INITIALIZATION ----------
 @st.cache_resource
 def init_app():
