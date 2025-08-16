@@ -25,7 +25,7 @@ from firebase_utils import (
 # ---------- CONFIG ----------
 SERVICE_ACCOUNT_PATH = "serviceAccountKey.json"
 QUESTIONS_FILE = "questions.json"
-QUIZ_DURATION_SECONDS = 120
+QUIZ_DURATION_SECONDS = 300
 
 import os
 
