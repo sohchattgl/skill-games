@@ -28,8 +28,13 @@ QUESTIONS_FILE = "questions.json"
 QUIZ_DURATION_SECONDS = 120
 
 import os
-from dotenv import load_dotenv
-load_dotenv()
+
+
+env = 'prod'
+
+if env == 'dev':
+    from dotenv import load_dotenv
+    load_dotenv()
 
 # Create Firebase key file from environment variable
 with open(SERVICE_ACCOUNT_PATH, 'w') as f:
