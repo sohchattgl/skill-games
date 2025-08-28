@@ -19,8 +19,9 @@ from firebase_utils import (
     update_user_best_and_answers,
     get_leaderboard,
     get_user,
-    save_feedback,  # Add this for feedback functionality
+    save_feedback,
 )
+from anticheat import apply_copy_protection
 
 # ---------- CONFIG ----------
 SERVICE_ACCOUNT_PATH = "serviceAccountKey.json"
@@ -29,8 +30,7 @@ QUIZ_DURATION_SECONDS = 300
 
 import os
 
-
-env = 'prod'
+env = 'dev'
 
 if env == 'dev':
     from dotenv import load_dotenv
@@ -55,7 +55,7 @@ def init_app():
 st.set_page_config(page_title="Capybara Quiz", layout="centered")
 firebase_available, questions = init_app()
 
-# ---------- CLEAN SESSION STATE ----------
+# ---------- SESSION STATE ----------
 def init_session():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -78,7 +78,7 @@ def init_session():
 
 init_session()
 
-# ---------- CACHED DATA (CLEAR WHEN NEEDED) ----------
+# ---------- CACHED DATA ----------
 @st.cache_data(ttl=60)
 def get_leaderboard_cached():
     if not firebase_available:
@@ -88,7 +88,7 @@ def get_leaderboard_cached():
     except:
         return []
 
-@st.cache_data(ttl=30)  # Shorter TTL for user data to ensure fresh answered questions
+@st.cache_data(ttl=30)
 def get_user_data(email):
     if not firebase_available:
         return None
@@ -99,7 +99,7 @@ def get_user_data(email):
 
 def clear_user_cache(email):
     """Clear cached user data when user answers questions"""
-    get_user_data.clear()  # Clear cache to get fresh data
+    get_user_data.clear()
 
 # ---------- UI COMPONENTS ----------
 def render_header():
@@ -141,13 +141,12 @@ def logout():
         del st.session_state[key]
     init_session()
 
-# ---------- AUTHENTICATION (FIXED) ----------
+# ---------- AUTHENTICATION ----------
 def render_auth():
     if not firebase_available:
         st.error("🚫 Firebase not configured")
         st.stop()
 
-    # Only show auth if not authenticated
     if st.session_state.authenticated:
         return
 
@@ -192,7 +191,7 @@ def render_auth():
                 else:
                     st.error("Please enter email and password")
 
-# ---------- GAME LOGIC (FIXED) ----------
+# ---------- GAME LOGIC ----------
 def start_quiz():
     st.session_state.game_state = init_user_game_state()
     st.session_state.attempt_meta = {
@@ -204,13 +203,12 @@ def start_quiz():
     st.session_state.game_active = True
     st.session_state.answer_submitted = False
     st.session_state.last_answer_time = 0
-    st.session_state.actual_level = "easy"  # Track actual difficulty being served
+    st.session_state.actual_level = "easy"
 
 def end_quiz():
     st.session_state.game_active = False
     st.session_state.page = "results"
     
-    # Save to Firebase
     if firebase_available and st.session_state.user:
         try:
             attempt = st.session_state.attempt_meta.copy()
@@ -230,23 +228,17 @@ def end_quiz():
             pass
 
 def get_next_question():
-    """Get next question - NEVER repeat correctly answered questions"""
-    # Get user's permanently answered questions (correctly answered across all sessions)
+    """Get next question - never repeat correctly answered questions"""
     excluded_forever = set()
     
     if firebase_available and st.session_state.user:
         user_data = get_user_data(st.session_state.user["email"])
         if user_data:
-            # These are questions answered CORRECTLY in previous sessions - NEVER repeat
             excluded_forever = set(user_data.get("answered_questions", []))
     
-    # Questions answered in current session (both right and wrong)
     excluded_this_session = set(st.session_state.game_state["answered_this_attempt"])
-    
-    # Total exclusions = forever excluded + current session
     total_excluded = excluded_forever.union(excluded_this_session)
     
-    # Try adaptive selection first
     try:
         next_q = next_question_for_user(
             questions,
@@ -254,29 +246,30 @@ def get_next_question():
             total_excluded
         )
         if next_q:
-            # Update actual level based on question difficulty
             st.session_state.actual_level = next_q.get("difficulty", "easy")
             return next_q
     except:
         pass
     
-    # Fallback: any question not in total exclusions
     available = [q for q in questions if q.get("id") not in total_excluded]
     if available:
         selected_q = available[0]
-        # Update actual level based on question difficulty
         st.session_state.actual_level = selected_q.get("difficulty", "easy")
         return selected_q
     
     return None
 
-# ---------- GAME INTERFACE (COMPLETELY FIXED) ----------
+# ---------- GAME INTERFACE ----------
 def render_game():
-    # Timer (no auto-refresh - manual only)
+    # Apply copy protection
+    cleanup_protection = apply_copy_protection()
+    
+    # Timer
     elapsed = time.time() - st.session_state.attempt_meta["start_time"]
     time_left = max(0, QUIZ_DURATION_SECONDS - elapsed)
     
     if time_left <= 0:
+        cleanup_protection()
         end_quiz()
         st.rerun()
         return
@@ -288,20 +281,19 @@ def render_game():
     
     question = st.session_state.current_question
     if not question:
+        cleanup_protection()
         end_quiz()
         st.rerun()
         return
     
-    # UI - Show actual question difficulty, not theoretical level
+    # UI
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Points", st.session_state.game_state["total_points"])
     with col2:
-        # Show actual difficulty of current question
         actual_difficulty = getattr(st.session_state, 'actual_level', 'easy')
         theoretical_level = st.session_state.game_state["current_level"]
         
-        # If they're different, show both
         if actual_difficulty != theoretical_level:
             st.metric("Level", f"{actual_difficulty.title()}", 
                      delta=f"Target: {theoretical_level.title()}")
@@ -310,39 +302,39 @@ def render_game():
     with col3:
         mins, secs = divmod(int(time_left), 60)
         if st.button(f"⏰ {mins}:{secs:02d}", key="timer_refresh"):
-            st.rerun()  # Manual refresh only
+            st.rerun()
     
     st.markdown("---")
     
-    # Show question with difficulty indicator
+    # Show question
     question_difficulty = question.get("difficulty", "easy")
     difficulty_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}.get(question_difficulty, "🟢")
     
     st.markdown(f"**Q:** {question.get('question')}")
     st.caption(f"{difficulty_emoji} {question_difficulty.title()} Question")
     
-    # Simple radio + button (no form complications)
+    # Answer options
     options = question.get("options", [])
     selected = st.radio("Choose answer:", options, key=f"radio_{question.get('id')}")
     
-    # Prevent double submission with time check
+    # Submit button
     can_submit = not st.session_state.answer_submitted
     current_time = time.time()
     
     if can_submit and st.button("Submit Answer", use_container_width=True, type="primary"):
-        # Prevent rapid clicking
         if current_time - st.session_state.last_answer_time > 1:
             st.session_state.answer_submitted = True
             st.session_state.last_answer_time = current_time
             process_answer(question, selected)
     elif st.session_state.answer_submitted:
         st.info("Processing... Next question loading...")
+    
+    cleanup_protection()
 
 def process_answer(question, selected):
     correct = selected == question.get("answer")
     
     try:
-        # Get exclusions for next question selection
         excluded_forever = set()
         if firebase_available and st.session_state.user:
             user_data = get_user_data(st.session_state.user["email"])
@@ -352,10 +344,8 @@ def process_answer(question, selected):
         excluded_this_session = set(st.session_state.game_state["answered_this_attempt"])
         total_excluded = excluded_forever.union(excluded_this_session)
         
-        # Update game state
         next_q = handle_answer(correct, question["id"], st.session_state.game_state, questions, total_excluded)
         
-        # Log attempt
         points = POINTS_PER_DIFFICULTY.get(question.get("difficulty", "easy"), 1) if correct else 0
         st.session_state.attempt_meta["questions_attempted"].append({
             "id": question["id"],
@@ -368,47 +358,38 @@ def process_answer(question, selected):
             "timestamp": int(time.time()),
         })
         
-        # IMPORTANT: If answered correctly, add to permanent exclusion list immediately
         if correct and firebase_available and st.session_state.user:
             try:
-                # Clear cache to ensure fresh data
                 clear_user_cache(st.session_state.user["email"])
                 
-                # Get current user data
                 user_data = get_user_data(st.session_state.user["email"]) or {}
                 current_answered = set(user_data.get("answered_questions", []))
-                
-                # Add this question to permanently answered
                 current_answered.add(question["id"])
                 
-                # Update immediately in Firebase
                 update_user_best_and_answers(
                     st.session_state.user["email"],
                     st.session_state.game_state["total_points"],
                     list(current_answered)
                 )
                 
-                # Clear cache again to ensure next question selection gets fresh data
                 clear_user_cache(st.session_state.user["email"])
                 
             except Exception as e:
                 print(f"Error updating answered questions: {e}")
         
-        # Show immediate feedback
+        # Feedback
         if correct:
             st.success(f"✅ Correct! +{points} points")
         else:
             st.error(f"❌ Wrong. Answer: {question.get('answer')}")
         
-        # Move to next question
+        # Next question
         st.session_state.current_question = next_q
         st.session_state.answer_submitted = False
         
-        # Update actual level based on next question (if exists)
         if next_q:
             st.session_state.actual_level = next_q.get("difficulty", "easy")
         
-        # Small delay then refresh
         time.sleep(1)
         st.rerun()
         
@@ -433,7 +414,6 @@ def render_home():
             if answered_count > 0:
                 st.info(f"📚 Questions mastered: {answered_count}")
                 
-            # Show available questions
             total_questions = len(questions)
             remaining = total_questions - answered_count
             if remaining > 0:
@@ -488,7 +468,6 @@ def render_results():
         try:
             difficulty_dist = difficulty_distribution(attempt["questions_attempted"])
             
-            # Show as columns
             diff_cols = st.columns(len(difficulty_dist) if difficulty_dist else 3)
             for i, (level, count) in enumerate(difficulty_dist.items()):
                 with diff_cols[i]:
@@ -520,10 +499,6 @@ def render_results():
                         "timestamp": int(time.time())
                     }
                     
-                    # You'll need to add this function to firebase_utils.py:
-                    # save_feedback(feedback_data)
-                    
-                    # For now, we'll try to save it or just show success
                     try:
                         save_feedback(feedback_data)
                         st.success("✅ Thank you for your feedback!")
@@ -554,19 +529,15 @@ def render_results():
 def main():
     render_header()
     
-    # Check authentication first
     if not st.session_state.authenticated or not st.session_state.user:
         render_auth()
         return
     
-    # Show logged in user
     st.sidebar.success(f"👋 {st.session_state.user['display_name']}")
     
-    # Navigation
     render_nav()
     st.markdown("---")
     
-    # Page routing
     if st.session_state.game_active:
         render_game()
     elif st.session_state.page == "leaderboard":
