@@ -30,7 +30,7 @@ QUIZ_DURATION_SECONDS = 300
 
 import os
 
-env = 'dev'
+env = 'prod'
 
 if env == 'dev':
     from dotenv import load_dotenv
