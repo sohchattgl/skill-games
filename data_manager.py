@@ -8,8 +8,26 @@ import csv
 import hashlib
 import os
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 import uuid
+
+# Global DataManager instance
+_data_manager = None
+
+def get_data_manager() -> 'DataManager':
+    """Get the global DataManager instance"""
+    global _data_manager
+    if _data_manager is None:
+        _data_manager = DataManager()
+    return _data_manager
+
+def get_user_attempts(username: str) -> Dict:
+    """Global wrapper for DataManager.get_user_attempts"""
+    return get_data_manager().get_user_attempts(username)
+
+def get_topic_questions(questions: List[Dict], topic: str) -> List[Dict]:
+    """Global wrapper for DataManager.get_topic_questions"""
+    return get_data_manager().get_topic_questions(questions, topic)
 
 class DataManager:
     def __init__(self, data_dir: str = "data"):
@@ -73,10 +91,10 @@ class DataManager:
         user_progress = self.load_user_progress()
         user_progress[username] = {
             'answered_correctly': [],  # Questions answered correctly (ever)
-            'current_difficulty': 'easy',
+            'current_difficulty': 1,  # numeric difficulty: 1=easy,2=medium,3=hard
             'answered_questions': [],  # Current session questions
             'session_score': 0,
-            'session_correct_count': {'easy': 0, 'medium': 0, 'hard': 0},
+            'session_correct_count': {1: 0, 2: 0, 3: 0},
             'best_score': 0,
             'session_start_time': None
         }
@@ -119,10 +137,10 @@ class DataManager:
         all_progress = self.load_user_progress()
         return all_progress.get(username, {
             'answered_correctly': [],
-            'current_difficulty': 'easy',
+            'current_difficulty': 1,
             'answered_questions': [],
             'session_score': 0,
-            'session_correct_count': {'easy': 0, 'medium': 0, 'hard': 0},
+            'session_correct_count': {1: 0, 2: 0, 3: 0},
             'best_score': 0,
             'session_start_time': None
         })
@@ -145,9 +163,10 @@ class DataManager:
         # Reset session-specific data
         progress['answered_questions'] = []
         progress['session_score'] = 0
-        progress['session_correct_count'] = {'easy': 0, 'medium': 0, 'hard': 0}
-        progress['current_difficulty'] = 'easy'
-        
+        progress['session_correct_count'] = {1: 0, 2: 0, 3: 0}
+        progress['current_difficulty'] = 1
+
+        # Persist progress
         self.update_user_progress(username, progress)
         return session_id
     
@@ -254,5 +273,40 @@ class DataManager:
             'best_score': users[username].get('best_score', 0),
             'total_sessions': users[username].get('total_sessions', 0),
             'questions_mastered': len(progress.get('answered_correctly', [])),
-            'session_logs': session_logs
+            'session_logs': session_logs,
+            'topic_progress': progress.get('topic_progress', {})
         }
+    
+    def get_user_attempts(self, username: str) -> Dict:
+        """Get the number of attempts and success rate for each topic for a user"""
+        progress = self.get_user_progress(username)
+        return progress.get('topic_progress', {})
+    
+    def update_topic_progress(self, username: str, topic: str, success: bool):
+        """Update user's attempt history for a topic"""
+        progress = self.get_user_progress(username)
+        
+        # Initialize topic progress if needed
+        if 'topic_progress' not in progress:
+            progress['topic_progress'] = {}
+        if topic not in progress['topic_progress']:
+            progress['topic_progress'][topic] = {
+                "attempts": 0,
+                "successes": 0,
+                "unlocked": False
+            }
+        
+        # Update attempts
+        progress['topic_progress'][topic]["attempts"] += 1
+        if success:
+            progress['topic_progress'][topic]["successes"] += 1
+            # Mark topic as unlocked if success rate is above threshold
+            success_rate = progress['topic_progress'][topic]["successes"] / progress['topic_progress'][topic]["attempts"]
+            if success_rate >= 0.7:  # 70% success rate to unlock
+                progress['topic_progress'][topic]["unlocked"] = True
+        
+        self.update_user_progress(username, progress)
+    
+    def get_topic_questions(self, questions: List[Dict], topic: str) -> List[Dict]:
+        """Get all questions for a specific topic"""
+        return [q for q in questions if q.get('topic') == topic]
