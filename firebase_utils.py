@@ -13,16 +13,43 @@ from report_utils import (
 
 _firestore_client = None
 
-def init_firebase(service_account_json_path: str):
+# def init_firebase(service_account_json_path: str):
+#     """Initialize Firebase safely and set global _firestore_client"""
+#     global _firestore_client
+#     if _firestore_client is not None:
+#         return _firestore_client
+#     if not firebase_admin._apps:  # prevent duplicate init
+#         cred = credentials.Certificate(service_account_json_path)
+#         firebase_admin.initialize_app(cred)
+#     _firestore_client = firestore.client()
+#     return _firestore_client
+
+import firebase_admin
+from firebase_admin import credentials, firestore
+import streamlit as st
+
+
+
+def init_firebase():
     """Initialize Firebase safely and set global _firestore_client"""
     global _firestore_client
+
     if _firestore_client is not None:
         return _firestore_client
-    if not firebase_admin._apps:  # prevent duplicate init
-        cred = credentials.Certificate(service_account_json_path)
-        firebase_admin.initialize_app(cred)
-    _firestore_client = firestore.client()
-    return _firestore_client
+
+    try:
+        if not firebase_admin._apps:  # prevent duplicate init
+            # Load creds from Streamlit secrets
+            cred = credentials.Certificate(dict(st.secrets["firebase"]))
+            firebase_admin.initialize_app(cred)
+
+        _firestore_client = firestore.client()
+        return _firestore_client
+
+    except Exception as e:
+        st.error(f"🚨 Firebase init failed: {e}")
+        return None
+
 
 def hash_password(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()

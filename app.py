@@ -287,9 +287,10 @@ def render_skill_tree_viz(skills, edges, mastery=None):
 @st.cache_resource
 def init_app():
     try:
-        firebase_available = Path(SERVICE_ACCOUNT_PATH).exists()
-        if firebase_available:
-            init_firebase(SERVICE_ACCOUNT_PATH)
+        # firebase_available = Path(SERVICE_ACCOUNT_PATH).exists()
+        # if firebase_available:
+        #     init_firebase(SERVICE_ACCOUNT_PATH)
+        firebase_available=init_firebase()
         
         # Load and validate questions
         with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
