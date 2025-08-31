@@ -49,6 +49,9 @@ from report_utils import (
     plot_concept_performance
 )
 
+
+
+
 # ---------- CONFIG ----------
 SERVICE_ACCOUNT_PATH = "serviceAccountKey.json"
 QUESTIONS_FILE = "questions.json"
@@ -62,9 +65,262 @@ if env == 'dev':
     from dotenv import load_dotenv
     load_dotenv()
 
+
+
+
+
+from neo4j import GraphDatabase
+import streamlit.components.v1 as components
+from pyvis.network import Network
+from tempfile import NamedTemporaryFile
+from pathlib import Path
+
+@st.cache_resource
+def init_neo4j():
+    try:
+        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+        # quick ping
+        with driver.session() as s:
+            s.run("RETURN 1").consume()
+        return driver
+    except Exception as e:
+        st.warning(f"Neo4j not available: {e}")
+        return None
+
+def fetch_skill_graph(driver):
+    """
+    Expected Neo4j model:
+      (:Skill {id, name})-[:SUBSKILL_OF]->(:Skill)
+      (:Question {id})-[:ASSESSES]->(:Skill)
+    """
+    with driver.session() as s:
+        # skills
+        skills = s.run("MATCH (s:Skill) RETURN s.id AS id, coalesce(s.name, s.id) AS name").data()
+        # edges (skill hierarchy)
+        edges = s.run("""
+            MATCH (p:Skill)-[:PRE_PREREQUISITE]->(c:Skill)
+            RETURN p.id AS parent, c.id AS child
+        """).data()
+        # question links (via QuestionBank)
+        q_links = s.run("""
+            MATCH (s:Skill)-[:HAS]->(:QuestionBank)-[:HAS]->(q:Question)
+            RETURN q.id AS qid, s.id AS sid
+        """).data()
+
+    return skills, edges,q_links
+
+def compute_mastery_per_skill(q_links, mastered_qids):
+    """
+    mastered_qids: set of question IDs the user has permanently mastered (from Firebase)
+    Returns dict sid -> (mastered, total)
+    """
+    per_skill = {}
+    for row in q_links:
+        sid = row["sid"]
+        qid = row["qid"]
+        #print("Question id:",qid)
+        total, mastered = per_skill.get(sid, (0,0))
+        total += 1
+        if qid in mastered_qids:
+            mastered += 1
+        print("Mastered skills:",mastered)
+        per_skill[sid] = (mastered, total)
+    return per_skill
+
+# def render_skill_tree_viz(skills, edges, mastery=None):
+#     """
+#     mastery: dict sid -> (mastered, total)
+#     Colors:
+#       - No questions: lightgray
+#       - 0%: #d3d3d3  (gray)
+#       - (0,100%): scaled blue
+#       - 100%: #2ecc71 (green)
+#     """
+#     net = Network(height="650px", width="100%", directed=True)
+#     net.barnes_hut()  # nicer layout
+
+#     def color_for_ratio(r):
+#         if r == 1.0:
+#             return "#2ecc71"
+#         if r == 0.0:
+#             return "#d3d3d3"
+#         # blue scale  (lighter to darker)
+#         # Map r in (0,1) to 80–200 in blue channel
+#         # Keep it simple: mid-tone blue
+#         return "#3498db"
+#     #print("Skills:",skills)
+#     for s in skills:
+#         sid = s["id"]
+#         name = s["name"]
+#         m, t = mastery.get(sid, (0,0))
+#         ratio = (m / t) if t > 0 else None
+#         subtitle = "No linked questions" if t == 0 else f"Mastery: {m}/{t} ({(m/t)*100:.0f}%)"
+#         color = "#cccccc" if ratio is None else color_for_ratio(ratio)
+#         size = 15 if ratio is None else 15 + int(15 * ratio)  # 15–30
+#         net.add_node(sid, label=name, title=subtitle, color=color, shape="dot", size=size)
+
+#     for e in edges:
+#         net.add_edge(e["parent"], e["child"], arrows="to")
+
+#     with NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+#         net.show(f.name, notebook=False)
+#         html = Path(f.name).read_text(encoding="utf-8")
+
+#     components.html(html, height=680, scrolling=True)
+
+def render_skill_tree_viz(skills, edges, mastery=None):
+    """
+    Enhanced skill tree visualization with improved text visibility.
+    
+    Args:
+        skills: List of skill dicts with 'id' and 'name'
+        edges: List of edge dicts with 'parent' and 'child'
+        mastery: dict sid -> (mastered, total)
+    
+    Colors:
+      - No questions: #f8f9fa (light gray)
+      - 0%: #e9ecef (gray)
+      - (0,100%): gradient blue scale
+      - 100%: #00b894 (green)
+    """
+    from pyvis.network import Network
+    from tempfile import NamedTemporaryFile
+    from pathlib import Path
+    import streamlit.components.v1 as components
+    
+    net = Network(height="650px", width="100%", directed=True)
+    net.barnes_hut(gravity=-3000, central_gravity=0.3, spring_length=100, spring_strength=0.1)
+    
+    def color_for_ratio(r):
+        """Generate color based on mastery ratio."""
+        if r == 1.0:
+            return "#00b894"  # Green for 100%
+        if r == 0.0:
+            return "#e9ecef"  # Light gray for 0%
+        
+        # Blue gradient for partial mastery
+        base_blue = [52, 152, 219]  # RGB for #3498db
+        intensity = 0.6 + (0.4 * r)  # Scale from 60% to 100% intensity
+        return f"rgb({int(base_blue[0] * intensity)}, {int(base_blue[1] * intensity)}, {int(base_blue[2] * intensity)})"
+    
+    def get_font_config(ratio):
+        """Configure font based on mastery ratio for better visibility."""
+        if ratio is None or ratio == 0:
+            return {
+                'color': '#2c3e50',      # Dark text for light backgrounds
+                'size': 14,
+                'face': 'arial',
+                'strokeWidth': 2,
+                'strokeColor': '#ffffff'  # White outline for contrast
+            }
+        elif ratio == 1.0:
+            return {
+                'color': '#ffffff',      # White text for green background
+                'size': 16,
+                'face': 'arial',
+                'strokeWidth': 2,
+                'strokeColor': '#2c3e50'  # Dark outline
+            }
+        else:
+            return {
+                'color': '#ffffff',      # White text for blue backgrounds
+                'size': 15,
+                'face': 'arial',
+                'strokeWidth': 2,
+                'strokeColor': '#2c3e50'  # Dark outline
+            }
+    
+    # Add nodes with enhanced visibility
+    for s in skills:
+        sid = s["id"]
+        name = s["name"]
+        m, t = mastery.get(sid, (0, 0))
+        ratio = (m / t) if t > 0 else None
+        
+        # Create subtitle with better formatting
+        # Create subtitle with better formatting
+        if t == 0:
+            subtitle = f"{name} - No linked questions"
+        else:
+            percentage = int((m/t) * 100)
+            subtitle = f"{name} - Mastery: {m}/{t} ({percentage}%)"
+        
+        # Get color and font configuration
+        color = "#f8f9fa" if ratio is None else color_for_ratio(ratio)
+        font_config = get_font_config(ratio)
+        
+        # Size based on mastery (larger for higher mastery)
+        base_size = 25
+        size = base_size if ratio is None else base_size + int(20 * ratio)  # 25–45
+        
+        # Add node with enhanced styling
+        net.add_node(
+            sid, 
+            label=name,
+            title=subtitle,
+            color={
+                'background': color,
+                'border': '#2c3e50',
+                'highlight': {
+                    'background': color,
+                    'border': '#e74c3c'
+                }
+            },
+            font=font_config,
+            shape="dot",
+            size=size,
+            borderWidth=2
+        )
+    
+    # Add edges with better styling
+    for e in edges:
+        net.add_edge(
+            e["parent"], 
+            e["child"], 
+            arrows="to",
+            color={'color': '#7f8c8d', 'highlight': '#e74c3c'},
+            width=2,
+            smooth={'type': 'dynamic'}
+        )
+    
+    # Configure physics for better layout
+    net.set_options("""
+    {
+      "physics": {
+        "enabled": true,
+        "barnesHut": {
+          "gravitationalConstant": -3000,
+          "centralGravity": 0.3,
+          "springLength": 120,
+          "springConstant": 0.1,
+          "damping": 0.95,
+          "avoidOverlap": 1
+        },
+        "maxVelocity": 50,
+        "minVelocity": 0.1,
+        "stabilization": {"iterations": 100}
+      },
+      "nodes": {
+        "borderWidthSelected": 3
+      },
+      "interaction": {
+        "hover": true,
+        "hoverConnectedEdges": true,
+        "selectConnectedEdges": false
+      }
+    }
+    """)
+    
+    # Generate and display the network
+    with NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+        net.show(f.name, notebook=False)
+        html = Path(f.name).read_text(encoding="utf-8")
+    
+    components.html(html, height=680, scrolling=True)
+
 # Create Firebase key file from environment variable
-with open(SERVICE_ACCOUNT_PATH, 'w') as f:
-    f.write(os.getenv('FIREBASE_KEY'))
+# with open(SERVICE_ACCOUNT_PATH, 'w') as f:
+#     f.write(os.getenv('FIREBASE_KEY'))
 
 # ---------- FAST INITIALIZATION ----------
 @st.cache_resource
@@ -104,6 +360,12 @@ def init_app():
 
 st.set_page_config(page_title="Capybara Quiz", layout="centered")
 firebase_available, questions = init_app()
+
+# ---------- NEO4J CONFIG ----------
+NEO4J_URI = os.getenv("NEO4J_URI", "neo4j+s://22339b75.databases.neo4j.io")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "HU_7HSU8Ow2HSklMpCeg3lyu7I0EuHmSmyGWvPNFPjQ")
+
 
 # ---------- SESSION STATE ----------
 def init_session():
@@ -176,7 +438,7 @@ def render_header():
     """, unsafe_allow_html=True)
 
 def render_nav():
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         if st.button("🏠 Home", use_container_width=True, key="nav_home"):
@@ -187,6 +449,10 @@ def render_nav():
             st.session_state.page = "leaderboard"
             st.rerun()
     with col3:
+        if st.button("🌳 Skills", use_container_width=True, key="nav_skills"):
+            st.session_state.page = "skills"; 
+            st.rerun()
+    with col4:
         if st.session_state.game_active:
             if st.button("⏹️ End Quiz", use_container_width=True, type="secondary", key="nav_end"):
                 end_quiz()
@@ -195,7 +461,7 @@ def render_nav():
             if st.button("📚 Topics", use_container_width=True, type="primary", key="nav_topics"):
                 st.session_state.page = "topics"
                 st.rerun()
-    with col4:
+    with col5:
         if st.button("🚪 Logout", use_container_width=True, key="nav_logout"):
             logout()
             st.rerun()
@@ -426,6 +692,39 @@ def render_game():
         st.info("Processing... Next question loading...")
     
     cleanup_protection()
+
+def render_skills():
+    st.markdown("### 🌳 Skill Tree")
+    driver = init_neo4j()
+    if not driver:
+        st.error("Neo4j connection not available. Check NEO4J_* settings.")
+        return
+
+    # get user mastery from Firebase (permanently mastered question IDs)
+    mastered_ids = set()
+    if firebase_available and st.session_state.user:
+        user_data = get_user_data(st.session_state.user["email"])
+        if user_data:
+            mastered_ids = set(user_data.get("answered_questions", []))
+    print("User data:",user_data)
+    print("Mastered ids:",mastered_ids)
+    with st.spinner("Loading skill graph..."):
+        skills, edges, q_links = fetch_skill_graph(driver)
+        mastery = compute_mastery_per_skill(q_links, mastered_ids)
+        #quick stats
+        mastered_skills = sum(1 for sid,(m,t) in mastery.items() if t>0 and m==t)
+        covered_skills  = sum(1 for sid,(m,t) in mastery.items() if t>0 and m>0)
+
+    c1, c2, c3 = st.columns(3)
+    with c1: st.metric("Skills mastered", mastered_skills)
+    with c2: st.metric("Skills with progress", covered_skills)
+    with c3: st.metric("Total skills", len(skills))
+
+    st.caption("Node size & color scale with mastery. Arrows point from parent → sub-skill.")
+    render_skill_tree_viz(skills, edges, mastery)
+    #render_skill_tree_viz(skills, edges)
+
+
 
 def process_answer(question, selected):
     correct = selected == question.get("answer")
@@ -665,6 +964,8 @@ def main():
         render_topics(st.session_state.questions, firebase_available)
     elif st.session_state.page == "full_skill_tree":
         render_full_skill_tree()
+    elif st.session_state.page == "skills":
+        render_skills()
     else:
         render_home()
 
