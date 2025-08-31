@@ -280,8 +280,8 @@ def render_skill_tree_viz(skills, edges, mastery=None):
     components.html(html, height=680, scrolling=True)
 
 # Create Firebase key file from environment variable
-with open(SERVICE_ACCOUNT_PATH, 'w') as f:
-    f.write(os.getenv('FIREBASE_KEY'))
+# with open(SERVICE_ACCOUNT_PATH, 'w') as f:
+#     f.write(os.getenv('FIREBASE_KEY'))
 
 # ---------- FAST INITIALIZATION ----------
 @st.cache_resource
@@ -322,10 +322,22 @@ def init_app():
 st.set_page_config(page_title="Capybara Quiz", layout="centered")
 firebase_available, questions = init_app()
 
+import os
+import streamlit as st
+
+def get_secret(key, section=None, default=None):
+    try:
+        if section:
+            return st.secrets[section].get(key, default)
+        return st.secrets.get(key, default)
+    except Exception:
+        return os.getenv(key, default)
+    
+
 # ---------- NEO4J CONFIG ----------
-NEO4J_URI = os.getenv("NEO4J_URI", "neo4j+s://22339b75.databases.neo4j.io")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "HU_7HSU8Ow2HSklMpCeg3lyu7I0EuHmSmyGWvPNFPjQ")
+NEO4J_URI = get_secret("NEO4J_URI", section="neo4j", default="neo4j+s://22339b75.databases.neo4j.io")
+NEO4J_USER = get_secret("NEO4J_USER", section="neo4j", default="neo4j")
+NEO4J_PASSWORD = get_secret("NEO4J_PASSWORD", section="neo4j")
 
 
 # ---------- SESSION STATE ----------
