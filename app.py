@@ -127,46 +127,7 @@ def compute_mastery_per_skill(q_links, mastered_qids):
         per_skill[sid] = (mastered, total)
     return per_skill
 
-# def render_skill_tree_viz(skills, edges, mastery=None):
-#     """
-#     mastery: dict sid -> (mastered, total)
-#     Colors:
-#       - No questions: lightgray
-#       - 0%: #d3d3d3  (gray)
-#       - (0,100%): scaled blue
-#       - 100%: #2ecc71 (green)
-#     """
-#     net = Network(height="650px", width="100%", directed=True)
-#     net.barnes_hut()  # nicer layout
 
-#     def color_for_ratio(r):
-#         if r == 1.0:
-#             return "#2ecc71"
-#         if r == 0.0:
-#             return "#d3d3d3"
-#         # blue scale  (lighter to darker)
-#         # Map r in (0,1) to 80–200 in blue channel
-#         # Keep it simple: mid-tone blue
-#         return "#3498db"
-#     #print("Skills:",skills)
-#     for s in skills:
-#         sid = s["id"]
-#         name = s["name"]
-#         m, t = mastery.get(sid, (0,0))
-#         ratio = (m / t) if t > 0 else None
-#         subtitle = "No linked questions" if t == 0 else f"Mastery: {m}/{t} ({(m/t)*100:.0f}%)"
-#         color = "#cccccc" if ratio is None else color_for_ratio(ratio)
-#         size = 15 if ratio is None else 15 + int(15 * ratio)  # 15–30
-#         net.add_node(sid, label=name, title=subtitle, color=color, shape="dot", size=size)
-
-#     for e in edges:
-#         net.add_edge(e["parent"], e["child"], arrows="to")
-
-#     with NamedTemporaryFile("w", suffix=".html", delete=False) as f:
-#         net.show(f.name, notebook=False)
-#         html = Path(f.name).read_text(encoding="utf-8")
-
-#     components.html(html, height=680, scrolling=True)
 
 def render_skill_tree_viz(skills, edges, mastery=None):
     """
@@ -319,8 +280,8 @@ def render_skill_tree_viz(skills, edges, mastery=None):
     components.html(html, height=680, scrolling=True)
 
 # Create Firebase key file from environment variable
-# with open(SERVICE_ACCOUNT_PATH, 'w') as f:
-#     f.write(os.getenv('FIREBASE_KEY'))
+with open(SERVICE_ACCOUNT_PATH, 'w') as f:
+    f.write(os.getenv('FIREBASE_KEY'))
 
 # ---------- FAST INITIALIZATION ----------
 @st.cache_resource
